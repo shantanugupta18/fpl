@@ -9,6 +9,8 @@ npm install
 npm start
 ```
 
+`npm start` runs in watch mode, so API restarts automatically when code changes.
+
 Development mode:
 
 ```bash
@@ -20,7 +22,9 @@ Default base URL: `http://127.0.0.1:3000`
 ## Postman quick start
 
 - Method: `POST`
-- URL: `http://127.0.0.1:3000/fpl/calculate`
+- URL (BASIC): `http://127.0.0.1:3000/fpl/calculate/basic`
+- URL (ADVANCE): `http://127.0.0.1:3000/fpl/calculate/advance`
+- URL (single route with filter): `http://127.0.0.1:3000/fpl/calculate?mode=BASIC` or `mode=ADVANCE`
 - Headers: `Content-Type: application/json`
 - Body (raw JSON):
 
@@ -28,7 +32,8 @@ Default base URL: `http://127.0.0.1:3000`
 {
   "household_size": 3,
   "household_income": 42000,
-  "tax_filing": "Y"
+  "tax_filing": "Y",
+  "is_ai_an": false
 }
 ```
 
@@ -37,6 +42,7 @@ Default base URL: `http://127.0.0.1:3000`
 - `household_size`: integer, required, `1..20`
 - `household_income`: number, required, `>= 0`
 - `tax_filing`: string, required, allowed values: `Y`, `N`
+- `is_ai_an`: boolean, optional, default `false`
 
 ## Response contract
 
@@ -56,9 +62,6 @@ Example response:
 
 ```json
 {
-  "household_size": 3,
-  "household_income": 42000,
-  "tax_filing": "Y",
   "results": {
     "2025": {
       "year": 2025,
@@ -86,9 +89,59 @@ Example response:
 
 ## Endpoints
 
-### POST `/fpl/calculate`
+### POST `/fpl/calculate/basic`
 
-Calculates 2025 and 2026 FPL percentages and mapped benefits for the same household input.
+Uses BASIC rule set (original implementation, no AI/AN threshold extension).
+
+### POST `/fpl/calculate/advance`
+
+Uses ADVANCE rule set (includes AI/AN-specific threshold and cost-sharing mapping).
+ADVANCE response follows the policy-spec style JSON (same keys as your reference):
+- `specVersion`, `jurisdiction`, `effectiveYears`
+- `definitions`, `fplBaseValues`, `inputsRequired`
+- `programRules`, `messagingRules`, `timingRules`, `decisionOrder`, `outputShape`
+- `evaluationByYear` with:
+  - `fplPercent`
+  - `eligiblePrograms`
+  - `ineligibleReasons`
+  - `messages`
+  - `consumer_eligible_benefit` (compatibility)
+
+ADVANCE request body (policy style):
+
+```json
+{
+  "year": "ALL",
+  "householdSize": 3,
+  "household_income": 42000,
+  "isPregnant": false,
+  "isChild": false,
+  "taxFilingStatus": "Y",
+  "hasAffordableEmployerCoverage": false,
+  "citizenshipImmigrationEligible": true,
+  "enrolledInMedicare": false,
+  "isAiAn": false
+}
+```
+
+Notes:
+- `year` supports `2025`, `2026`, or `"ALL"`.
+- For compatibility, snake_case inputs are also accepted (for example `household_size`, `household_income`, `tax_filing`, `is_ai_an`).
+
+### POST `/fpl/calculate?mode=BASIC|ADVANCE`
+
+Single endpoint with mode filter. Defaults to `BASIC` when `mode` is not provided.
+
+## Route insights
+
+- Use `POST /fpl/calculate/basic` when you want stable baseline behavior without AI/AN-specific threshold expansion.
+- Use `POST /fpl/calculate/advance` when you want Oregon AI/AN-aware logic:
+  - OHP Bridge extension to `205%` for AI/AN (`is_ai_an=true`)
+  - AI/AN marketplace cost-sharing messaging bands.
+- Use `POST /fpl/calculate?mode=...` if your client prefers one endpoint and controls behavior by query filter.
+- Recommended integration approach:
+  - UI/API clients with explicit feature toggle: use `mode=ADVANCE` only where policy-approved.
+  - Existing clients needing backward compatibility: continue using BASIC route.
 
 ### GET `/health`
 
@@ -104,13 +157,21 @@ Returns service status.
 
 - Adults:
   - `<= 138%` FPL: `Medicaid (OHP Plus)`
-  - `> 138% and <= 200%` FPL: `BHP (OHP Bridge)`
+- `> 138% and <= 200%` FPL: `BHP (OHP Bridge)`
+- If `is_ai_an = true`, OHP Bridge extends to `<= 205%` FPL:
+  - `> 200% and <= 205%` FPL: `BHP (OHP Bridge - AI/AN Basic Medicaid)`
 - Children (conditional because payload does not include age/member role):
   - `< 163%` FPL: `Child Medicaid/OHP (if child in household)`
   - `>= 163% and <= 300%` FPL: `CHIP (if child in household)`
 - Tax filing:
-  - `tax_filing = Y` and `> 200%` FPL: `APTC`
+  - `tax_filing = Y` and above OHP Bridge limit:
+    - non-AI/AN: `> 200%` FPL
+    - AI/AN: `> 205%` FPL
+  - `APTC` in those above-threshold cases
   - `tax_filing = Y` and `100% to 250%` FPL: `CSR (Silver plan only)`
+  - If `is_ai_an = true` and above OHP Bridge limit:
+    - `100% to 300%` FPL: `AI/AN Zero Cost Sharing (Marketplace, 100-300%)`
+    - `> 300%` FPL: `AI/AN Limited Cost Sharing (Marketplace, >300%)`
   - `tax_filing = N`: `APTC/CSR not available (non-tax filer)`
 
 ## FPL base values (annual 100% FPL)

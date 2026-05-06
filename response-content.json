@@ -1,0 +1,460 @@
+{
+  "advancePolicySpec": {
+    "specVersion": "1.0.0",
+    "jurisdiction": "OR",
+    "effectiveYears": [
+      2025,
+      2026
+    ],
+    "definitions": {
+      "fplPercentFormula": "(household_income / fplBaseValueForYearAndHouseholdSize) * 100",
+      "magi": "AGI + untaxed foreign income + non-taxable Social Security benefits + tax-exempt interest",
+      "notes": [
+        "MAGI pathways apply to Marketplace and MAGI Medicaid/CHIP determinations.",
+        "Non-income criteria must be evaluated in addition to FPL bands."
+      ]
+    },
+    "fplBaseValues": {
+      "2025": {
+        "1": 15650,
+        "2": 21150,
+        "3": 26650,
+        "4": 32150,
+        "5": 37650,
+        "6": 43150,
+        "7": 48650,
+        "8": 54150,
+        "incrementAbove8": 5500
+      },
+      "2026": {
+        "1": 15960,
+        "2": 21640,
+        "3": 27320,
+        "4": 33000,
+        "5": 38680,
+        "6": 44360,
+        "7": 50040,
+        "8": 55720,
+        "incrementAbove8": 5680
+      }
+    },
+    "inputsRequired": [
+      "year",
+      "householdSize",
+      "isPregnant",
+      "isChild",
+      "taxFilingStatus",
+      "hasAffordableEmployerCoverage",
+      "citizenshipImmigrationEligible",
+      "enrolledInMedicare"
+    ],
+    "programRules": [
+      {
+        "program": "Medicaid_OHPPlus_Adult",
+        "appliesWhen": {
+          "all": [
+            {
+              "eq": [
+                "isChild",
+                false
+              ]
+            },
+            {
+              "eq": [
+                "isPregnant",
+                false
+              ]
+            },
+            {
+              "lte": [
+                "fplPercent",
+                138
+              ]
+            },
+            {
+              "eq": [
+                "citizenshipImmigrationEligible",
+                true
+              ]
+            }
+          ]
+        },
+        "priority": 100
+      },
+      {
+        "program": "BHP_OHPBridge_Adult",
+        "appliesWhen": {
+          "all": [
+            {
+              "eq": [
+                "isChild",
+                false
+              ]
+            },
+            {
+              "eq": [
+                "isPregnant",
+                false
+              ]
+            },
+            {
+              "gt": [
+                "fplPercent",
+                138
+              ]
+            },
+            {
+              "lte": [
+                "fplPercent",
+                200
+              ]
+            },
+            {
+              "eq": [
+                "citizenshipImmigrationEligible",
+                true
+              ]
+            },
+            {
+              "eq": [
+                "hasAffordableEmployerCoverage",
+                false
+              ]
+            },
+            {
+              "eq": [
+                "enrolledInMedicare",
+                false
+              ]
+            }
+          ]
+        },
+        "priority": 90
+      },
+      {
+        "program": "Medicaid_OHPPlus_Child",
+        "appliesWhen": {
+          "all": [
+            {
+              "eq": [
+                "isChild",
+                true
+              ]
+            },
+            {
+              "lt": [
+                "fplPercent",
+                163
+              ]
+            },
+            {
+              "eq": [
+                "citizenshipImmigrationEligible",
+                true
+              ]
+            }
+          ]
+        },
+        "priority": 95
+      },
+      {
+        "program": "CHIP_Child",
+        "appliesWhen": {
+          "all": [
+            {
+              "eq": [
+                "isChild",
+                true
+              ]
+            },
+            {
+              "gte": [
+                "fplPercent",
+                163
+              ]
+            },
+            {
+              "lte": [
+                "fplPercent",
+                300
+              ]
+            },
+            {
+              "eq": [
+                "citizenshipImmigrationEligible",
+                true
+              ]
+            }
+          ]
+        },
+        "priority": 85
+      },
+      {
+        "program": "Marketplace_APTC",
+        "appliesWhen": {
+          "all": [
+            {
+              "gt": [
+                "fplPercent",
+                200
+              ]
+            },
+            {
+              "eq": [
+                "taxFilingStatus",
+                "Y"
+              ]
+            },
+            {
+              "eq": [
+                "hasAffordableEmployerCoverage",
+                false
+              ]
+            },
+            {
+              "eq": [
+                "enrolledInMedicare",
+                false
+              ]
+            },
+            {
+              "eq": [
+                "citizenshipImmigrationEligible",
+                true
+              ]
+            }
+          ]
+        },
+        "priority": 70
+      },
+      {
+        "program": "Marketplace_CSR",
+        "appliesWhen": {
+          "all": [
+            {
+              "gte": [
+                "fplPercent",
+                100
+              ]
+            },
+            {
+              "lte": [
+                "fplPercent",
+                250
+              ]
+            },
+            {
+              "eq": [
+                "taxFilingStatus",
+                "Y"
+              ]
+            },
+            {
+              "eq": [
+                "marketplacePlanMetalLevel",
+                "Silver"
+              ]
+            }
+          ]
+        },
+        "priority": 60
+      }
+    ],
+    "messagingRules": [
+      {
+        "messageKey": "APTC_CSR_NOT_AVAILABLE_NON_TAX_FILER",
+        "showWhen": {
+          "all": [
+            {
+              "eq": [
+                "taxFilingStatus",
+                "N"
+              ]
+            },
+            {
+              "gt": [
+                "fplPercent",
+                200
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "timingRules": {
+      "marketplace": {
+        "incomeBasis": "Expected annual MAGI for coverage year",
+        "reconciliation": "PTC reconciled on federal tax return (Form 8962 with 1095-A)"
+      },
+      "oregonOHP": {
+        "continuousEligibility": "Most members keep coverage through continuous eligibility period; OHP Bridge Basic Health Program renews yearly for most members",
+        "changeReporting": "Members should report income/address/other coverage changes even during continuous eligibility period"
+      }
+    },
+    "decisionOrder": [
+      "Medicaid_OHPPlus_Child",
+      "CHIP_Child",
+      "Medicaid_OHPPlus_Adult",
+      "BHP_OHPBridge_Adult",
+      "Marketplace_APTC",
+      "Marketplace_CSR"
+    ],
+    "outputShape": {
+      "fplPercent": "number",
+      "eligiblePrograms": "array<string>",
+      "ineligibleReasons": "array<string>",
+      "messages": "array<string>",
+      "strict_consumer_eligible_benefit": "array<string>"
+    }
+  },
+  "helpResponseTemplate": {
+    "title": "FPL Calculator API Help",
+    "version": "1.0.0",
+    "routes": [
+      {
+        "method": "GET",
+        "path": "/health",
+        "description": "Health check endpoint.",
+        "request_body": null,
+        "response_type": "application/json",
+        "response_example": {
+          "status": "ok"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/fpl/calculate/help",
+        "description": "Documentation endpoint for all routes, request bodies, and response formats.",
+        "request_body": null,
+        "response_type": "application/json",
+        "response_example": {
+          "title": "FPL Calculator API Help",
+          "routes": [
+            "..."
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/fpl/calculate/basic",
+        "description": "BASIC mode (original implementation).",
+        "request_body_type": "application/json",
+        "request_body_example": {
+          "household_size": 3,
+          "household_income": 42000,
+          "tax_filing": "Y"
+        },
+        "response_type": "application/json",
+        "response_shape": {
+          "mode": "BASIC",
+          "results": {
+            "2025": {
+              "year": "number",
+              "fpl_base_value": "number",
+              "fpl_percentage": "number",
+              "consumer_eligible_benefit": [
+                "string"
+              ]
+            },
+            "2026": {
+              "year": "number",
+              "fpl_base_value": "number",
+              "fpl_percentage": "number",
+              "consumer_eligible_benefit": [
+                "string"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/fpl/calculate/advance",
+        "description": "ADVANCE mode (policy-spec style output, AI/AN-aware and criteria-aware evaluation).",
+        "request_body_type": "application/json",
+        "request_body_example": {
+          "year": "ALL",
+          "householdSize": 3,
+          "household_income": 42000,
+          "isPregnant": false,
+          "isChild": false,
+          "taxFilingStatus": "Y",
+          "hasAffordableEmployerCoverage": false,
+          "citizenshipImmigrationEligible": true,
+          "enrolledInMedicare": false,
+          "isAiAn": false
+        },
+        "response_type": "application/json",
+        "response_shape": {
+          "evaluationByYear": {
+            "2025": {
+              "fplPercent": "number",
+              "eligiblePrograms": [
+                "string"
+              ],
+              "ineligibleReasons": [
+                "string"
+              ],
+              "messages": [
+                "string"
+              ],
+              "consumer_eligible_benefit": [
+                "string"
+              ],
+              "strict_consumer_eligible_benefit": [
+                "string"
+              ]
+            },
+            "2026": {
+              "fplPercent": "number",
+              "eligiblePrograms": [
+                "string"
+              ],
+              "ineligibleReasons": [
+                "string"
+              ],
+              "messages": [
+                "string"
+              ],
+              "consumer_eligible_benefit": [
+                "string"
+              ],
+              "strict_consumer_eligible_benefit": [
+                "string"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/fpl/calculate?mode=BASIC|ADVANCE",
+        "description": "Single endpoint with mode filter. BASIC by default.",
+        "request_body_type": "application/json",
+        "request_body_example": {
+          "household_size": 3,
+          "household_income": 42000,
+          "tax_filing": "Y",
+          "is_ai_an": false
+        },
+        "response_type": "application/json",
+        "notes": [
+          "mode=BASIC returns BASIC response shape.",
+          "mode=ADVANCE returns policy-spec response shape (same as /fpl/calculate/advance)."
+        ]
+      }
+    ],
+    "common_validation_errors": [
+      "household_size must be an integer between 1 and 20",
+      "household_income must be a non-negative number",
+      "tax_filing must be 'Y' or 'N'",
+      "year must be 2025, 2026, or ALL",
+      "taxFilingStatus must be 'Y' or 'N'",
+      "isPregnant must be boolean",
+      "isChild must be boolean",
+      "hasAffordableEmployerCoverage must be boolean",
+      "citizenshipImmigrationEligible must be boolean",
+      "enrolledInMedicare must be boolean"
+    ]
+  }
+}
